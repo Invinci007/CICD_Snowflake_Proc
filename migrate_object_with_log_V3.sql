@@ -1,4 +1,4 @@
--- Snowflake Procedure to Migrate Objects between Databases using JavaScript with Logging (V2)
+-- Snowflake Procedure to Migrate Objects between Databases using JavaScript with Logging (V3)
 
 -- Prerequisite: A log table. You can create it using the following DDL:
 /*
@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS UTILITIES.cicd_log_table (
 */
 
 -- Usage:
--- CALL MIGRATE_OBJECT_WITH_LOG_V2('SOURCE_DB', 'TARGET_DB', 'SOURCE_SCHEMA', 'TARGET_SCHEMA', 'TABLE', 'MY_TABLE');
+-- CALL MIGRATE_OBJECT_WITH_LOG_V3('SOURCE_DB', 'TARGET_DB', 'SOURCE_SCHEMA', 'TARGET_SCHEMA', 'TABLE', 'MY_TABLE');
 
-CREATE OR REPLACE PROCEDURE MIGRATE_OBJECT_WITH_LOG_V2(
+CREATE OR REPLACE PROCEDURE MIGRATE_OBJECT_WITH_LOG_V3(
     SOURCE_DATABASE VARCHAR,
     TARGET_DATABASE VARCHAR,
     SOURCE_SCHEMA VARCHAR,
@@ -82,13 +82,17 @@ try {
             rs.next();
             var ddl = rs.getColumnValue(1);
 
-            var search_string = `"${SOURCE_DATABASE}"."${SOURCE_SCHEMA}"`;
-            var replace_string = `"${TARGET_DATABASE}"."${TARGET_SCHEMA}"`;
-            var new_ddl = ddl.split(search_string).join(replace_string);
+            // Use case-insensitive, global regex to replace database and schema names
+            // This is more robust than simple string replacement.
 
-            var schema_search = `"${SOURCE_SCHEMA}"`;
-            var schema_replace = `"${TARGET_SCHEMA}"`;
-            new_ddl = new_ddl.split(schema_search).join(schema_replace);
+            // 1. Replace the database name
+            var db_search_regex = new RegExp(`\\b${SOURCE_DATABASE}\\b`, 'gi');
+            var new_ddl = ddl.replace(db_search_regex, TARGET_DATABASE);
+
+            // 2. Replace the schema name
+            // Note: This is safe even if source and target schema are the same.
+            var schema_search_regex = new RegExp(`\\b${SOURCE_SCHEMA}\\b`, 'gi');
+            new_ddl = new_ddl.replace(schema_search_regex, TARGET_SCHEMA);
 
             sql_command = new_ddl;
             break;
